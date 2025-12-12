@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  # Servicio 1: Tu Aplicación Backend
+  app:
+    # Usamos la imagen que creamos hoy
+    image: javier203/node-dynamic-db:1.0
+    container_name: backend-jenkins
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      # Configuramos para que use MONGO
+      - MY_DATABASE_DRIVER=mongo
+      - DB_HOST=mongo-db
+      - DB_PORT=27017
+      - DB_NAME=database
+    depends_on:
+      - mongo-db
+    networks:
+      - jenkins-net
+
+  # Servicio 2: Base de Datos Mongo
+  mongo-db:
+    image: mongo:5.0
+    container_name: mongo-jenkins
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - jenkins-net
+
+# Volúmenes para que los datos no se borren
+volumes:
+  mongo-data:
+
+# Red privada
+networks:
+  jenkins-net:
+    driver: bridge

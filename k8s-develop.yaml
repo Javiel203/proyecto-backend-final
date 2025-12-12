@@ -1,0 +1,153 @@
+# --- 1. NAMESPACE (El vecindario) ---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pena-javier
+
+---
+
+# --- BONUS: BASE DE DATOS MONGODB (Para que tu app funcione) ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo-db
+  namespace: pena-javier
+spec:
+  selector:
+    matchLabels:
+      app: mongo-db
+  template:
+    metadata:
+      labels:
+        app: mongo-db
+    spec:
+      containers:
+      - name: mongo
+        image: mongo:5.0
+        ports:
+        - containerPort: 27017
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-service # Este es el host que usaremos en la app
+  namespace: pena-javier
+spec:
+  selector:
+    app: mongo-db
+  ports:
+  - port: 27017
+    targetPort: 27017
+
+---
+
+# --- 2. SECRET (Contraseña encriptada) ---
+# "123456" en Base64 es "MTIzNDU2"
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-secret
+  namespace: pena-javier
+type: Opaque
+data:
+  db-password: MTIzNDU2
+
+---
+
+# --- 3. CONFIGMAP (Variables de entorno) ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: pena-javier
+data:
+  # Configuramos para que use MONGO y conecte al servicio de arriba
+  MY_DATABASE_DRIVER: "mongo"
+  DB_HOST: "mongo-service"
+  DB_PORT: "27017"
+  DB_NAME: "database"
+  DB_USER_NAME: "root"
+
+---
+
+# --- 4. DEPLOYMENT (Tu Aplicación Backend) ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-app
+  namespace: pena-javier
+spec:
+  replicas: 2 # El examen pide mínimo 2 pods
+  selector:
+    matchLabels:
+      app: mi-backend
+  template:
+    metadata:
+      labels:
+        app: mi-backend
+    spec:
+      containers:
+      - name: node-container
+        # TU IMAGEN DE DOCKER HUB
+        image: javier203/node-dynamic-db:1.0
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        
+        # Inyectamos la configuración
+        env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: db-password
+        envFrom:
+        - configMapRef:
+            name: app-config
+
+---
+
+# --- 5. SERVICE (Exponer la app) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: pena-javier
+spec:
+  type: LoadBalancer
+  selector:
+    app: mi-backend
+  ports:
+  - protocol: TCP
+    port: 80       # Puerto en el navegador (localhost)
+    targetPort: 3000 # Puerto del contenedor Node.js
+
+---
+
+# --- 6. CRONJOB (Backup a AWS cada 3 min) ---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: aws-backup-job
+  namespace: pena-javier
+spec:
+  schedule: "*/3 * * * *" # "Cada 3 minutos"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: aws-cli-backup
+            # Usamos una imagen oficial que tiene AWS CLI instalado
+            image: amazon/aws-cli
+            # Simulamos el comando de backup (ya que no tenemos credenciales reales de AWS)
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Iniciando backup..."
+              echo "Conectando a base de datos..."
+              echo "Exportando data..."
+              echo "Subiendo a S3: s3://bucket-codigo-backup/pena/database/$(date +%Y%m%d%H%M%S)"
+              echo "Backup completado exitosamente."

@@ -1,0 +1,37 @@
+name: Cambio Manual de Driver DB
+
+# Activador manual (Botón en la web)
+on:
+  workflow_dispatch:
+    inputs:
+      recurso_k8s:
+        description: 'Nombre del Deployment en K8s'
+        required: true
+        default: 'backend-app'
+      driver_db:
+        description: 'Nuevo Driver (mysql, postgres, mongo)'
+        required: true
+        default: 'postgres'
+        type: choice
+        options:
+        - mysql
+        - postgres
+        - mongo
+
+jobs:
+  cambiar-driver:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Imprimir Selección
+        run: |
+          echo "🚀 Solicitud recibida:"
+          echo "   - Recurso: ${{ inputs.recurso_k8s }}"
+          echo "   - Nuevo Driver: ${{ inputs.driver_db }}"
+
+      - name: Generar Comando para Localhost
+        run: |
+          echo "✅ Para aplicar este cambio en tu PC local, ejecuta:"
+          echo "kubectl set env deployment/${{ inputs.recurso_k8s }} MY_DATABASE_DRIVER=${{ inputs.driver_db }} -n pena-javier"
